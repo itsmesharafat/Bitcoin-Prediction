@@ -1,20 +1,39 @@
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
+import tensorflow as tf
 import yfinance as yf
-from keras.models import load_model
 from sklearn.preprocessing import MinMaxScaler
 import streamlit as st
-#load Model 
-model = load_model('C:\Python\Bitcoin\Bitcoin_Price_prediction_Model.keras')
+
+BASE_DIR = Path(__file__).resolve().parent
+MODEL_PATH = BASE_DIR / 'Bitcoin_Price_prediction_Model.keras'
+
+# Load model from the project directory using the active TensorFlow/Keras runtime.
+model = tf.keras.models.load_model(MODEL_PATH)
 
 st.header('Bitcoin Price Prediction Model')
 st.subheader('Bitcoin Price Data')
-data = pd.DataFrame(yf.download('BTC-USD','2015-01-01','2023-11-30'))
-data = data.reset_index()
+data = pd.DataFrame(yf.download('BTC-USD', '2015-01-01', '2023-11-30'))
+if not data.empty:
+    data = data.reset_index()
+    if isinstance(data.columns, pd.MultiIndex):
+        data.columns = [col[0] if isinstance(col, tuple) else col for col in data.columns]
+    data.columns = [str(col).strip() for col in data.columns]
+
+    # yfinance can vary a little between versions, so only drop columns that exist.
+    extra_columns = [col for col in ['Date', 'Open', 'High', 'Low', 'Adj Close', 'Volume'] if col in data.columns]
+    data = data.drop(columns=extra_columns)
+    if 'Close' not in data.columns:
+        raise ValueError("The downloaded BTC data does not contain a 'Close' column.")
+    data = data[['Close']].copy()
+else:
+    st.error('No BTC data was returned by yfinance.')
+    st.stop()
 st.write(data)
 
 st.subheader('Bitcoin Line Chart')
-data.drop(columns = ['Date','Open','High','Low','Adj Close','Volume'], inplace=True)
 st.line_chart(data)
 
 train_data = data[:-100]
